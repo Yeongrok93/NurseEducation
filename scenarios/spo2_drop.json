@@ -1,0 +1,84 @@
+{
+  "title": "SpO2 Drop — Acute Hypoxemia",
+  "difficulty": 2,
+  "personality": "직설적이고 바쁜 중환자실 담당의. 불필요한 말이 없고 정보가 부족하면 즉각 추가 질문한다.",
+
+  "patient": {
+    "name": "김철수",
+    "age": 67,
+    "gender": "남성",
+    "dob": "1957-03-14",
+    "room": "ICU-04",
+    "mrn": "2024-087431",
+    "weight": 72,
+    "height": 170,
+
+    "diagnosis": [
+      "Community-acquired pneumonia (중증)",
+      "Type 2 Respiratory Failure",
+      "Hypertension",
+      "Type 2 Diabetes Mellitus"
+    ],
+
+    "admission_reason": "발열 및 호흡곤란으로 응급실 내원 후 중환자실 입실. CXR상 우하엽 폐렴 소견, 산소요구량 증가로 기계환기 적용.",
+    "admission_date": "2024-11-18",
+    "icu_day": 3,
+
+    "history": [
+      "HTN — 10년 전 진단, amlodipine 복용 중",
+      "T2DM — 8년 전 진단, metformin + insulin 사용",
+      "흡연력 — 30갑년 (5년 전 금연)",
+      "알레르기 없음"
+    ],
+
+    "medications": [
+      "Piperacillin/tazobactam 4.5g IV q8h",
+      "Vancomycin 1g IV q12h",
+      "Heparin 5000 IU SC q12h",
+      "Insulin glargine 20U SC qhs",
+      "Amlodipine 5mg PO qd",
+      "Pantoprazole 40mg IV qd"
+    ],
+
+    "recent_events": [
+      "2시간 전부터 SpO2 지속 하락",
+      "분비물 증가, 기침 반응 활발",
+      "체온 38.7°C (1시간 전 측정)"
+    ],
+
+    "note": "기계환기 3일차. 현재 SpO2 하락 원인 평가 필요."
+  },
+
+  "monitor": {
+    "hr": 112,
+    "bp": "142/88",
+    "spo2": 91,
+    "rr": 26
+  },
+
+  "ventilator": {
+    "mode": "A/C",
+    "fio2": 0.6,
+    "peep": 8,
+    "rr": 18
+  },
+
+  "labs": {
+    "abga": {
+      "pH": 7.31,
+      "PaCO2": 52,
+      "PaO2": 58,
+      "HCO3": 20
+    }
+  },
+
+  "goal": [
+    "Identify yourself clearly",
+    "State patient name and identifier",
+    "Describe the current situation (SpO2 drop)",
+    "Provide background (diagnosis, ventilator settings, day 3)",
+    "Share relevant findings (vitals, ABGA, temperature)",
+    "Give clinical assessment",
+    "Recommend next steps (increase FiO2, suction, CXR, etc.)"
+  ]
+}
