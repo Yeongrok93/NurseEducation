@@ -1,36 +1,144 @@
-from flask import Flask, request, jsonify, render_template, session
+﻿from functools import wraps
+from flask import Flask, request, jsonify, render_template, session, redirect, url_for
 from flask_cors import CORS
 from dotenv import load_dotenv
-import os
 import copy
+import logging
+import os
+import re
 
 from openai import OpenAI
 
-from engine.scenario_loader import load_scenario
-from engine.game_state import GameState
 from engine.evaluator import SBAREvaluator
+from engine.game_state import GameState
+from engine.log_repository import SupabaseLogRepository
 from engine.physician_agent import PhysicianAgent
+from engine.scenario_loader import load_scenario
 
 load_dotenv()
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+log_repo = SupabaseLogRepository(
+    os.getenv("SUPABASE_URL"),
+    os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_ANON_KEY"),
+)
 
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "icu-sim-secret-key")
 CORS(app)
 
-# 시나리오는 한 번만 로드 (읽기 전용 원본)
-_scenario_template = load_scenario("spo2_drop")
+SCENARIO_NAME = "spo2_drop"
+_scenario_template = load_scenario(SCENARIO_NAME)
+
+SUPABASE_URL = os.getenv("SUPABASE_URL", "")
+SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY", "")
+
+SBAR_SCORE_KEYS = [
+    "identify_self",
+    "patient_name",
+    "situation",
+    "context",
+    "recent_findings",
+    "facts_only",
+    "assessment",
+    "recommendation",
+    "contact_information",
+]
 
 evaluator = SBAREvaluator(client)
 doctor = PhysicianAgent(client)
-
-# 세션별 게임 상태 저장소
 games: dict[str, GameState] = {}
 
 
+def current_user_id() -> str | None:
+    return session.get("user_id")
+
+
+def current_user_email() -> str | None:
+    return session.get("user_email")
+
+
+def login_required_page(view_func):
+    @wraps(view_func)
+    def wrapped(*args, **kwargs):
+        if not current_user_id():
+            return redirect(url_for("login"))
+        return view_func(*args, **kwargs)
+
+    return wrapped
+
+
+def login_required_api(view_func):
+    @wraps(view_func)
+    def wrapped(*args, **kwargs):
+        if not current_user_id():
+            return jsonify({"error": "Unauthorized"}), 401
+        return view_func(*args, **kwargs)
+
+    return wrapped
+
+
+def build_cumulative_report(history: list[dict]) -> str:
+    nurse_messages = [item["content"] for item in history if item.get("role") == "user" and item.get("content")]
+    return "\n".join(nurse_messages).strip()
+
+
+def normalize_analysis(raw_analysis: dict) -> dict:
+    analysis = dict(raw_analysis or {})
+    recalculated_score = 0
+    for key in SBAR_SCORE_KEYS:
+        value = 1 if int(analysis.get(key, 0) or 0) == 1 else 0
+        analysis[key] = value
+        recalculated_score += value
+
+    analysis.pop("patient_identifier", None)
+    analysis["total_score"] = recalculated_score
+    analysis["incorrect_items"] = analysis.get("incorrect_items") or []
+    analysis["missing_items"] = analysis.get("missing_items") or []
+    analysis["verified_facts"] = analysis.get("verified_facts") or []
+    analysis["next_focus"] = analysis.get("next_focus") or []
+    return analysis
+
+
+def apply_message_guardrails(report_text: str, analysis: dict) -> dict:
+    normalized = re.sub(r"\s+", "", report_text.lower())
+    short_nonclinical_patterns = {
+        "안녕하세요",
+        "안녕",
+        "네",
+        "예",
+        "응",
+        "넵",
+        "감사합니다",
+        "감사",
+        "죄송합니다",
+        "알겠습니다",
+        "확인했습니다",
+    }
+
+    if normalized in short_nonclinical_patterns or len(normalized) <= 4:
+        for key in SBAR_SCORE_KEYS:
+            analysis[key] = 0
+        analysis["total_score"] = 0
+        analysis["overall_status"] = "insufficient"
+        analysis["verified_facts"] = []
+        analysis["incorrect_items"] = []
+        analysis["missing_items"] = [
+            "자기소개",
+            "환자 이름",
+            "현재 문제",
+            "배경 정보",
+            "활력징후 또는 검사 결과",
+        ]
+        analysis["next_focus"] = ["자기소개", "환자 이름", "현재 상태 보고"]
+        analysis["feedback"] = "인사나 짧은 응답만으로는 SBAR 보고로 평가되지 않습니다."
+
+    return analysis
+
+
 def get_game() -> GameState:
-    """현재 세션의 GameState를 반환. 없으면 새로 생성."""
     sid = session.get("sid")
     if sid and sid in games:
         return games[sid]
@@ -38,99 +146,172 @@ def get_game() -> GameState:
 
 
 def _new_game() -> GameState:
-    """세션에 새 게임을 생성하고 저장."""
     import uuid
+
+    previous_sid = session.get("sid")
+    if previous_sid:
+        games.pop(previous_sid, None)
+
     sid = str(uuid.uuid4())
     session["sid"] = sid
-    # 원본 시나리오를 deepcopy해서 격리
+
     game = GameState(copy.deepcopy(_scenario_template))
+    game.db_session_id = log_repo.create_game_session(sid, game, current_user_id())
     games[sid] = game
     return game
 
 
+@app.route("/login")
+def login():
+    if current_user_id():
+        return redirect(url_for("home"))
+    return render_template(
+        "login.html",
+        supabase_url=SUPABASE_URL,
+        supabase_anon_key=SUPABASE_ANON_KEY,
+    )
+
+
+@app.route("/auth/session", methods=["POST"])
+def auth_session():
+    if not log_repo.client:
+        return jsonify({"error": "Supabase is not configured"}), 500
+
+    data = request.get_json(silent=True) or {}
+    access_token = data.get("access_token")
+    if not access_token:
+        return jsonify({"error": "Missing access token"}), 400
+
+    try:
+        response = log_repo.client.auth.get_user(access_token)
+        user = response.user
+    except Exception as exc:
+        logger.exception("Failed to verify Supabase token.")
+        return jsonify({"error": f"Token verification failed: {str(exc)}"}), 401
+
+    if not user:
+        return jsonify({"error": "Invalid user"}), 401
+
+    session.clear()
+    session["user_id"] = user.id
+    session["user_email"] = user.email
+    session["auth_access_token"] = access_token
+
+    return jsonify({"user_id": user.id, "email": user.email})
+
+
+@app.route("/auth/me")
+def auth_me():
+    if not current_user_id():
+        return jsonify({"authenticated": False}), 401
+    return jsonify({
+        "authenticated": True,
+        "user_id": current_user_id(),
+        "email": current_user_email(),
+    })
+
+
+@app.route("/logout", methods=["POST"])
+def logout():
+    sid = session.get("sid")
+    if sid:
+        games.pop(sid, None)
+    session.clear()
+    return jsonify({"ok": True})
+
+
 @app.route("/")
+@login_required_page
 def home():
-    game = _new_game()   # 홈 진입 시 항상 새 게임
-    return render_template("index.html", scenario=game.scenario.title)
+    game = _new_game()
+    return render_template("index.html", scenario=game.scenario.title, user_email=current_user_email())
 
 
 @app.route("/get_monitor")
+@login_required_api
 def get_monitor():
     game = get_game()
     return jsonify({
         "spo2": game.scenario.monitor["spo2"],
-        "hr":   game.scenario.monitor["hr"],
-        "bp":   game.scenario.monitor["bp"],
-        "rr":   game.scenario.monitor["rr"],
+        "hr": game.scenario.monitor["hr"],
+        "bp": game.scenario.monitor["bp"],
+        "rr": game.scenario.monitor["rr"],
         "turn": game.turn,
     })
 
 
 @app.route("/get_vent")
+@login_required_api
 def get_vent():
     return jsonify(get_game().scenario.ventilator)
 
 
 @app.route("/get_chart")
+@login_required_api
 def get_chart():
     return jsonify(get_game().scenario.chart)
 
 
 @app.route("/get_labs")
+@login_required_api
 def get_labs():
     return jsonify(get_game().scenario.labs)
 
 
 @app.route("/get_patient")
+@login_required_api
 def get_patient():
     return jsonify(get_game().scenario.patient)
 
 
 @app.route("/interact", methods=["POST"])
+@login_required_api
 def interact():
     game = get_game()
 
     if game.game_over:
         return jsonify({"error": "Game already ended"}), 400
 
-    data = request.json
+    data = request.json or {}
     message = data.get("message", "").strip()
     if not message:
         return jsonify({"error": "Empty message"}), 400
 
     game.next_turn()
-
     game.history.append({"role": "user", "content": message})
+    cumulative_report = build_cumulative_report(game.history)
 
     try:
-        analysis = evaluator.evaluate(game.scenario, message)
-    except Exception as e:
-        return jsonify({"error": f"Evaluation failed: {str(e)}"}), 500
+        analysis = normalize_analysis(evaluator.evaluate(game.scenario, cumulative_report))
+        analysis = apply_message_guardrails(cumulative_report, analysis)
+    except Exception as exc:
+        return jsonify({"error": f"Evaluation failed: {str(exc)}"}), 500
 
-    # GPT가 반환한 total_score를 신뢰 (Python 재계산 제거)
-    score = analysis.get("total_score", 0)
-    game.add_score(score)
-
-    result = game.check_end()
+    score = analysis["total_score"]
+    game.set_score(score)
+    result = game.check_end(analysis)
 
     if result:
         game.game_over = True
         physician_response = "알겠습니다. 바로 확인하겠습니다."
     else:
         try:
-            physician_response = doctor.respond(game.scenario, game.history)
-        except Exception as e:
-            physician_response = "죄송합니다. 잠시 후 다시 시도해주세요."
+            physician_response = doctor.respond(game.scenario, game.history, analysis)
+        except Exception:
+            physician_response = "죄송합니다. 잠시 후 다시 시도해 주세요."
 
     game.history.append({"role": "assistant", "content": physician_response})
+    log_repo.log_turn(game, message, physician_response, analysis, result)
+    if result:
+        log_repo.finalize_game_session(game, result)
 
     return jsonify({
-        "analysis":           analysis,
-        "score":              score,
-        "total_score":        game.score,
+        "analysis": analysis,
+        "score": score,
+        "total_score": game.score,
         "physician_response": physician_response,
-        "turn":               game.turn,
-        "result":             result,
+        "turn": game.turn,
+        "result": result,
     })
 
 

@@ -1,47 +1,39 @@
+﻿import json
+
+
 class PhysicianAgent:
 
     def __init__(self, client):
-
         self.client = client
 
-    def respond(self, scenario, history):
-
+    def respond(self, scenario, history, analysis):
         system_prompt = f"""
-당신은 중환자실(ICU)에서 간호사의 노티를 받는 담당 의사입니다.
+당신은 ICU 주치의다.
+당신은 이미 시나리오의 정답을 알고 있고, 간호사의 보고가 정확한지 확인하는 역할을 한다.
+하지만 바로 모든 정답을 말하지 말고, 체크리스트 평가 결과에 따라 반응해야 한다.
 
-당신의 역할은 문제를 바로 해결하는 것이 아니라,
-간호사가 SBAR 방식으로 적절하게 의사소통하도록 돕는 것입니다.
+응답 원칙:
+1. 간호사 보고에 틀린 정보가 있으면 그 부분을 먼저 다시 확인하도록 요청한다.
+2. 중요한 정보가 빠져 있으면 1~2개의 핵심 질문만 한다.
+3. 정보가 충분하고 정확할 때만 다음 조치나 지시를 준다.
+4. 항상 실제 중환자실 의사처럼 짧고 자연스럽게 1~2문장으로 답한다.
+5. verified_facts는 굳이 반복 나열하지 말고, 필요한 경우에만 간단히 인정한다.
+6. incorrect_items가 있으면 정답을 길게 설명하지 말고 '다시 확인' 형태로 유도한다.
+7. missing_items가 있으면 그중 가장 중요한 것부터 묻는다.
 
-규칙:
+의사 성향:
+{scenario.personality}
 
-1. 간호사의 메시지에 SBAR 정보가 충분하지 않으면 추가 질문을 하십시오.
-2. 충분한 정보가 제공되기 전에는 치료 지시를 바로 내리지 마십시오.
-3. 간호사가 더 많은 임상 정보를 제공하도록 유도하십시오.
-4. 다음과 같은 정보가 부족하면 질문하십시오:
-   - 환자 신원 정보
-   - 환자의 배경 상태(진단, 입원 이유 등)
-   - 활력징후
-   - 인공호흡기 설정
-   - 최근 검사 결과
-5. 실제 중환자실 의사처럼 짧고 자연스럽게 1~2문장으로 대화하십시오.
-
-Personality: {scenario.personality}
-
-Patient:
-{scenario.patient}
-
-Monitor:
-{scenario.monitor}
-
+평가 결과:
+{json.dumps(analysis, ensure_ascii=False, indent=2)}
 """
 
-        messages = [{"role": "system", "content": system_prompt}] 
-        messages += history
+        messages = [{"role": "system", "content": system_prompt}] + history
 
         response = self.client.chat.completions.create(
             model="gpt-4o-mini",
             messages=messages,
-            temperature=0.5
+            temperature=0.4,
         )
 
         return response.choices[0].message.content

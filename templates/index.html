@@ -1,24 +1,24 @@
 {% extends "base.html" %}
 
-{% block title %}ICU Simulation — {{ scenario }}{% endblock %}
+{% block title %}ICU Simulation | {{ scenario }}{% endblock %}
 
 {% block content %}
-
-<!-- ═══════════════ SCENE ═══════════════ -->
 <div id="scene">
-
-  <!-- ── 왼쪽: 액션 버튼 ── -->
-  <div id="leftPanel">
-    <div class="panel-label">CLINICAL DATA</div>
-    <button onclick="openPatient()">🩺 Patient Chart</button>
-    <button onclick="openVent()">🫁 Ventilator</button>
-    <button onclick="openLabs()">🧪 Lab Results</button>
+  <div id="sessionBar" class="panel">
+    <div class="session-label">&#xB85C;&#xADF8;&#xC778; &#xACC4;&#xC815;</div>
+    <div class="session-email">{{ user_email or "Unknown user" }}</div>
+    <button class="session-logout" onclick="logoutUser()">Logout</button>
   </div>
 
-  <!-- ── 가운데: 의사 이미지 ── -->
+  <div id="leftPanel">
+    <div class="panel-label">CLINICAL DATA</div>
+    <button onclick="openPatient()">&#xD658;&#xC790; &#xCC28;&#xD2B8;</button>
+    <button onclick="openVent()">Ventilator</button>
+    <button onclick="openLabs()">&#xAC80;&#xC0AC; &#xACB0;&#xACFC;</button>
+  </div>
+
   <img id="doctorImage" src="/static/image/stable.png" alt="Doctor">
 
-  <!-- ── 오른쪽: 바이탈 모니터 ── -->
   <div id="monitorPanel">
     <div class="mon-header">PATIENT MONITOR</div>
     <div class="mon-row">
@@ -32,7 +32,7 @@
       <span class="mon-unit">mmHg</span>
     </div>
     <div class="mon-row spo2-row">
-      <span class="mon-label">SpO₂</span>
+      <span class="mon-label">SpO2</span>
       <span id="spo2" class="mon-val">--</span>
       <span class="mon-unit">%</span>
     </div>
@@ -48,138 +48,89 @@
     </div>
   </div>
 
-  <!-- ── 의사 응답창 ── -->
   <div id="dialogueWindow">
-    <div class="dialogue-badge">Dr. Response</div>
-    <p id="doctorReply">환자 상태를 SBAR 형식으로 보고해주세요.</p>
+    <div class="dialogue-badge">&#xC758;&#xC0AC; &#xC751;&#xB2F5;</div>
+    <p id="doctorReply">&#xD658;&#xC790; &#xC0C1;&#xD0DC;&#xB97C; SBAR &#xD615;&#xC2DD;&#xC73C;&#xB85C; &#xBCF4;&#xACE0;&#xD574; &#xC8FC;&#xC138;&#xC694;.</p>
   </div>
 
-  <!-- ── 입력창 ── -->
   <div id="inputBar">
-    <textarea
-      id="message"
-      placeholder="SBAR 형식으로 보고하세요... (Enter: 전송 / Shift+Enter: 줄바꿈)"
-    ></textarea>
-    <button id="sendBtn" onclick="sendMessage()">전송</button>
-  </div>
-
-</div><!-- /scene -->
-
-
-<!-- ═══════════════ SBAR 피드백 패널 (우하단 오버레이) ═══════════════ -->
-<div id="feedbackPanel" class="feedback-hidden">
-
-  <div class="fb-header">
-    <span class="fb-title">SBAR 평가 결과</span>
-    <span id="fbScore" class="fb-score-badge">0 / 10</span>
-    <button class="fb-close" onclick="closeFeedback()">✕</button>
-  </div>
-
-  <div class="fb-body">
-
-    <div class="fb-section">
-      <div class="fb-section-label">Situation</div>
-      <div class="fb-items">
-        <div class="fb-item" id="fb_identify_self">
-          <span class="fb-dot"></span> 본인 소개
-        </div>
-        <div class="fb-item" id="fb_patient_name">
-          <span class="fb-dot"></span> 환자 이름
-        </div>
-        <div class="fb-item" id="fb_patient_identifier">
-          <span class="fb-dot"></span> 2차 식별 정보
-        </div>
-        <div class="fb-item" id="fb_situation">
-          <span class="fb-dot"></span> 상황/긴급도 표현
-        </div>
-      </div>
-    </div>
-
-    <div class="fb-section">
-      <div class="fb-section-label">Background</div>
-      <div class="fb-items">
-        <div class="fb-item" id="fb_context">
-          <span class="fb-dot"></span> 배경 맥락
-        </div>
-        <div class="fb-item" id="fb_recent_findings">
-          <span class="fb-dot"></span> 최근 소견
-        </div>
-        <div class="fb-item" id="fb_facts_only">
-          <span class="fb-dot"></span> 사실만 제공
-        </div>
-      </div>
-    </div>
-
-    <div class="fb-section">
-      <div class="fb-section-label">Assessment</div>
-      <div class="fb-items">
-        <div class="fb-item" id="fb_assessment">
-          <span class="fb-dot"></span> 임상 평가
-        </div>
-      </div>
-    </div>
-
-    <div class="fb-section">
-      <div class="fb-section-label">Recommendation</div>
-      <div class="fb-items">
-        <div class="fb-item" id="fb_recommendation">
-          <span class="fb-dot"></span> 구체적 조치 제안
-        </div>
-        <div class="fb-item" id="fb_contact_information">
-          <span class="fb-dot"></span> 연락처 / 확인 요청
-        </div>
-      </div>
-    </div>
-
-    <div id="fbFeedbackText" class="fb-feedback-text"></div>
-
-  </div><!-- /fb-body -->
-
-</div><!-- /feedbackPanel -->
-
-
-<!-- ═══════════════ RESULT OVERLAY ═══════════════ -->
-<div id="resultOverlay" class="result-overlay result-hidden">
-  <div class="result-box">
-    <div id="resultIcon" class="result-icon">✓</div>
-    <div id="resultTitle" class="result-title">SUCCESS</div>
-    <div id="resultDesc"  class="result-desc"></div>
-    <button onclick="location.reload()">다시 시작</button>
+    <textarea id="message" placeholder="SBAR &#xD615;&#xC2DD;&#xC73C;&#xB85C; &#xBCF4;&#xACE0;&#xB97C; &#xC785;&#xB825;&#xD558;&#xC138;&#xC694;. Enter&#xB294; &#xC804;&#xC1A1;, Shift+Enter&#xB294; &#xC904;&#xBC14;&#xAFC8;&#xC785;&#xB2C8;&#xB2E4;."></textarea>
+    <button id="sendBtn" onclick="sendMessage()">&#xC804;&#xC1A1;</button>
   </div>
 </div>
 
+<div id="feedbackPanel" class="feedback-hidden">
+  <div class="fb-header">
+    <span class="fb-title">SBAR FEEDBACK</span>
+    <span id="fbScore" class="fb-score-badge">0 / 9</span>
+    <button class="fb-close" onclick="closeFeedback()">X</button>
+  </div>
+  <div class="fb-body">
+    <div class="fb-section">
+      <div class="fb-section-label">Situation</div>
+      <div class="fb-items">
+        <div class="fb-item" id="fb_identify_self"><span class="fb-dot"></span> Identifies self</div>
+        <div class="fb-item" id="fb_patient_name"><span class="fb-dot"></span> Patient name</div>
+                <div class="fb-item" id="fb_situation"><span class="fb-dot"></span> Situation or urgency</div>
+      </div>
+    </div>
+    <div class="fb-section">
+      <div class="fb-section-label">Background</div>
+      <div class="fb-items">
+        <div class="fb-item" id="fb_context"><span class="fb-dot"></span> Clinical context</div>
+        <div class="fb-item" id="fb_recent_findings"><span class="fb-dot"></span> Recent findings</div>
+        <div class="fb-item" id="fb_facts_only"><span class="fb-dot"></span> Relevant facts only</div>
+      </div>
+    </div>
+    <div class="fb-section">
+      <div class="fb-section-label">Assessment</div>
+      <div class="fb-items">
+        <div class="fb-item" id="fb_assessment"><span class="fb-dot"></span> Assessment</div>
+      </div>
+    </div>
+    <div class="fb-section">
+      <div class="fb-section-label">Recommendation</div>
+      <div class="fb-items">
+        <div class="fb-item" id="fb_recommendation"><span class="fb-dot"></span> Suggested action</div>
+        <div class="fb-item" id="fb_contact_information"><span class="fb-dot"></span> Follow-up or contact</div>
+      </div>
+    </div>
+    <div id="fbFeedbackText" class="fb-feedback-text"></div>
+  </div>
+</div>
 
-<!-- ═══════════════ DATA MODAL (vent / labs) ═══════════════ -->
+<div id="resultOverlay" class="result-overlay result-hidden">
+  <div class="result-box">
+    <div id="resultIcon" class="result-icon">!</div>
+    <div id="resultTitle" class="result-title">RESULT</div>
+    <div id="resultDesc" class="result-desc"></div>
+    <button onclick="location.reload()">&#xB2E4;&#xC2DC; &#xC2DC;&#xC791;</button>
+  </div>
+</div>
+
 <div id="dataModal" class="modal">
   <div class="modal-content">
-    <button class="modal-close" onclick="closeModal()">✕</button>
+    <button class="modal-close" onclick="closeModal()">X</button>
     <div id="modalBody"></div>
   </div>
 </div>
 
-<!-- ═══════════════ PATIENT CHART MODAL ═══════════════ -->
 <div id="patientModal" class="modal">
   <div class="modal-content chart-modal">
-    <button class="modal-close" onclick="closePatientModal()">✕</button>
-
-    <!-- 헤더 -->
+    <button class="modal-close" onclick="closePatientModal()">X</button>
     <div class="chart-header">
       <div>
-        <div class="chart-name" id="chartName">— —</div>
+        <div class="chart-name" id="chartName">Unknown Patient</div>
         <div class="chart-meta" id="chartMeta"></div>
       </div>
       <div class="chart-badge" id="chartRoom"></div>
     </div>
-
-    <!-- 탭 -->
     <div class="chart-tabs">
-      <button class="chart-tab active" onclick="switchTab('overview')">Overview</button>
-      <button class="chart-tab" onclick="switchTab('history')">History</button>
-      <button class="chart-tab" onclick="switchTab('meds')">Medications</button>
-      <button class="chart-tab" onclick="switchTab('events')">Recent Events</button>
+      <button class="chart-tab active" data-tab="overview" onclick="switchTab('overview', event)">Overview</button>
+      <button class="chart-tab" data-tab="history" onclick="switchTab('history', event)">History</button>
+      <button class="chart-tab" data-tab="meds" onclick="switchTab('meds', event)">Medications</button>
+      <button class="chart-tab" data-tab="events" onclick="switchTab('events', event)">Recent Events</button>
     </div>
-
-    <!-- 탭 콘텐츠 -->
     <div id="tab-overview" class="chart-pane">
       <div class="chart-section-title">DIAGNOSIS</div>
       <div id="chartDx" class="chart-dx-list"></div>
@@ -189,790 +140,128 @@
       <div class="chart-section-title" style="margin-top:16px">CLINICAL NOTE</div>
       <div id="chartNote" class="chart-text"></div>
     </div>
-
     <div id="tab-history" class="chart-pane hidden">
       <div class="chart-section-title">PAST MEDICAL HISTORY</div>
       <ul id="chartHistory" class="chart-list"></ul>
     </div>
-
     <div id="tab-meds" class="chart-pane hidden">
       <div class="chart-section-title">CURRENT MEDICATIONS</div>
       <ul id="chartMeds" class="chart-list mono-list"></ul>
     </div>
-
     <div id="tab-events" class="chart-pane hidden">
       <div class="chart-section-title">RECENT EVENTS</div>
       <ul id="chartEvents" class="chart-list events-list"></ul>
     </div>
-
   </div>
 </div>
 
-
-<!-- ═══════════════ STYLES ═══════════════ -->
 <style>
-
-/* ── Scene layout ── */
-#scene {
-  position: relative;
-  width: 100vw;
-  height: 100vh;
-  overflow: hidden;
-}
-
-/* ── Left panel ── */
-#leftPanel {
-  position: absolute;
-  top: 110px;
-  left: 28px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  z-index: 4;
-}
-.panel-label {
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 0.15em;
-  color: var(--text-dim);
-  margin-bottom: 4px;
-}
+#scene { position: relative; width: 100vw; height: 100vh; overflow: hidden; }
+#sessionBar { position: absolute; top: 24px; right: 24px; z-index: 5; min-width: 220px; padding: 14px 16px; }
+.session-label { font-family: var(--mono); font-size: 10px; letter-spacing: 0.16em; color: var(--text-dim); margin-bottom: 6px; }
+.session-email { font-size: 14px; color: var(--text); margin-bottom: 12px; word-break: break-all; }
+.session-logout { width: 100%; }
+#leftPanel { position: absolute; top: 110px; left: 28px; display: flex; flex-direction: column; gap: 10px; z-index: 4; }
+.panel-label { font-family: var(--mono); font-size: 10px; letter-spacing: 0.15em; color: var(--text-dim); margin-bottom: 4px; }
 #leftPanel button { width: 148px; text-align: left; }
-
-/* ── Doctor image ── */
-#doctorImage {
-  position: absolute;
-  bottom: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  height: 74vh;
-  z-index: 2;
-  filter: drop-shadow(0 20px 50px rgba(0,0,0,0.7));
-  transition: filter 0.4s;
-}
-
-/* ── Monitor ── */
-#monitorPanel {
-  position: absolute;
-  top: 90px;
-  right: 32px;
-  width: 240px;
-  background: #020c06;
-  border: 1px solid rgba(0,220,130,0.3);
-  border-radius: 14px;
-  padding: 18px 20px;
-  z-index: 4;
-  box-shadow:
-    0 0 30px rgba(0,220,130,0.15),
-    inset 0 0 20px rgba(0,220,130,0.05);
-}
-.mon-header {
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 0.2em;
-  color: rgba(0,220,130,0.5);
-  margin-bottom: 14px;
-}
-.mon-row {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  margin-bottom: 10px;
-}
-.mon-label {
-  font-family: var(--mono);
-  font-size: 11px;
-  color: rgba(0,220,130,0.5);
-  width: 36px;
-  flex-shrink: 0;
-}
-.mon-val {
-  font-family: var(--mono);
-  font-size: 28px;
-  font-weight: bold;
-  line-height: 1;
-  transition: color 0.4s;
-}
-.mon-unit {
-  font-family: var(--mono);
-  font-size: 10px;
-  color: rgba(0,220,130,0.4);
-}
+#doctorImage { position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); height: 74vh; z-index: 2; filter: drop-shadow(0 20px 50px rgba(0,0,0,0.7)); transition: filter 0.4s; }
+#monitorPanel { position: absolute; top: 90px; right: 32px; width: 240px; background: #020c06; border: 1px solid rgba(0,220,130,0.3); border-radius: 14px; padding: 18px 20px; z-index: 4; box-shadow: 0 0 30px rgba(0,220,130,0.15), inset 0 0 20px rgba(0,220,130,0.05); }
+.mon-header { font-family: var(--mono); font-size: 10px; letter-spacing: 0.2em; color: rgba(0,220,130,0.5); margin-bottom: 14px; }
+.mon-row { display: flex; align-items: baseline; gap: 6px; margin-bottom: 10px; }
+.mon-label { font-family: var(--mono); font-size: 11px; color: rgba(0,220,130,0.5); width: 36px; flex-shrink: 0; }
+.mon-val { font-family: var(--mono); font-size: 28px; font-weight: bold; line-height: 1; transition: color 0.4s; }
+.mon-unit { font-family: var(--mono); font-size: 10px; color: rgba(0,220,130,0.4); }
 .mon-val.green { color: var(--green); }
 .mon-val.yellow { color: var(--yellow); }
-.mon-val.red {
-  color: var(--red);
-  animation: blink 0.8s infinite;
-}
-@keyframes blink {
-  0%,100% { opacity:1; }
-  50%      { opacity:0.3; }
-}
-.mon-divider {
-  border-top: 1px solid rgba(0,220,130,0.12);
-  margin: 12px 0 10px;
-}
-.mon-footer {
-  font-family: var(--mono);
-  font-size: 11px;
-  color: rgba(0,220,130,0.5);
-  display: flex;
-  justify-content: space-between;
-}
-
-/* ── Dialogue ── */
-#dialogueWindow {
-  position: absolute;
-  bottom: 160px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 56%;
-  background: rgba(10,18,28,0.78);
-  backdrop-filter: blur(16px);
-  border: 1px solid rgba(0,220,130,0.2);
-  border-radius: 16px;
-  padding: 20px 24px;
-  z-index: 3;
-  min-height: 70px;
-}
-.dialogue-badge {
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 0.15em;
-  color: var(--text-dim);
-  margin-bottom: 10px;
-}
-#doctorReply {
-  font-size: 16px;
-  line-height: 1.7;
-  color: var(--text);
-}
-
-/* ── Input ── */
-#inputBar {
-  position: absolute;
-  bottom: 24px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 56%;
-  display: flex;
-  gap: 10px;
-  z-index: 4;
-}
-#inputBar textarea {
-  flex: 1;
-  height: 64px;
-}
-#sendBtn {
-  align-self: flex-end;
-  height: 44px;
-  padding: 0 20px;
-  white-space: nowrap;
-}
-#sendBtn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-/* ═══ FEEDBACK PANEL ═══ */
-#feedbackPanel {
-  position: fixed;
-  bottom: 24px;
-  right: 24px;
-  width: 300px;
-  background: rgba(8,16,24,0.95);
-  backdrop-filter: blur(16px);
-  border: 1px solid rgba(0,220,130,0.22);
-  border-radius: 16px;
-  z-index: 50;
-  overflow: hidden;
-  transition: opacity 0.3s, transform 0.3s;
-  box-shadow: 0 8px 40px rgba(0,0,0,0.5);
-}
-.feedback-hidden {
-  opacity: 0;
-  transform: translateY(20px);
-  pointer-events: none;
-}
-.feedback-visible {
-  opacity: 1 !important;
-  transform: translateY(0) !important;
-  pointer-events: all !important;
-}
-.fb-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 14px 16px 12px;
-  border-bottom: 1px solid rgba(0,220,130,0.1);
-}
-.fb-title {
-  font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: 0.12em;
-  color: var(--text-dim);
-  flex: 1;
-}
-.fb-score-badge {
-  font-family: var(--mono);
-  font-size: 13px;
-  font-weight: bold;
-  color: var(--green);
-  background: rgba(0,220,130,0.12);
-  border: 1px solid rgba(0,220,130,0.3);
-  border-radius: 6px;
-  padding: 2px 8px;
-}
-.fb-close {
-  background: transparent;
-  border: none;
-  color: var(--text-dim);
-  font-size: 14px;
-  padding: 2px 4px;
-  cursor: pointer;
-  box-shadow: none;
-}
+.mon-val.red { color: var(--red); animation: blink 0.8s infinite; }
+@keyframes blink { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
+.mon-divider { border-top: 1px solid rgba(0,220,130,0.12); margin: 12px 0 10px; }
+.mon-footer { font-family: var(--mono); font-size: 11px; color: rgba(0,220,130,0.5); display: flex; justify-content: space-between; }
+#dialogueWindow { position: absolute; bottom: 160px; left: 50%; transform: translateX(-50%); width: 56%; background: rgba(10,18,28,0.78); backdrop-filter: blur(16px); border: 1px solid rgba(0,220,130,0.2); border-radius: 16px; padding: 20px 24px; z-index: 3; min-height: 70px; }
+.dialogue-badge { font-family: var(--mono); font-size: 10px; letter-spacing: 0.15em; color: var(--text-dim); margin-bottom: 10px; }
+#doctorReply { font-size: 16px; line-height: 1.7; color: var(--text); }
+#inputBar { position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%); width: 56%; display: flex; gap: 10px; z-index: 4; }
+#inputBar textarea { flex: 1; height: 64px; }
+#sendBtn { align-self: flex-end; height: 44px; padding: 0 20px; white-space: nowrap; }
+#sendBtn:disabled { opacity: 0.4; cursor: not-allowed; }
+#feedbackPanel { position: fixed; bottom: 24px; right: 24px; width: 300px; background: rgba(8,16,24,0.95); backdrop-filter: blur(16px); border: 1px solid rgba(0,220,130,0.22); border-radius: 16px; z-index: 50; overflow: hidden; transition: opacity 0.3s, transform 0.3s; box-shadow: 0 8px 40px rgba(0,0,0,0.5); }
+.feedback-hidden { opacity: 0; transform: translateY(20px); pointer-events: none; }
+.feedback-visible { opacity: 1 !important; transform: translateY(0) !important; pointer-events: all !important; }
+.fb-header { display: flex; align-items: center; gap: 8px; padding: 14px 16px 12px; border-bottom: 1px solid rgba(0,220,130,0.1); }
+.fb-title { font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; color: var(--text-dim); flex: 1; }
+.fb-score-badge { font-family: var(--mono); font-size: 13px; font-weight: bold; color: var(--green); background: rgba(0,220,130,0.12); border: 1px solid rgba(0,220,130,0.3); border-radius: 6px; padding: 2px 8px; }
+.fb-close { background: transparent; border: none; color: var(--text-dim); font-size: 14px; padding: 2px 4px; cursor: pointer; box-shadow: none; }
 .fb-close:hover { color: var(--red); background: transparent; box-shadow: none; }
-
 .fb-body { padding: 12px 16px 16px; }
-
 .fb-section { margin-bottom: 12px; }
-.fb-section-label {
-  font-family: var(--mono);
-  font-size: 9px;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: var(--text-dim);
-  margin-bottom: 6px;
-}
+.fb-section-label { font-family: var(--mono); font-size: 9px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 6px; }
 .fb-items { display: flex; flex-direction: column; gap: 4px; }
-.fb-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  color: rgba(212,232,216,0.5);
-  transition: color 0.3s;
-}
+.fb-item { display: flex; align-items: center; gap: 8px; font-size: 12px; color: rgba(212,232,216,0.5); transition: color 0.3s; }
 .fb-item.pass { color: var(--green); }
 .fb-item.fail { color: rgba(212,232,216,0.25); }
-
-.fb-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: rgba(212,232,216,0.15);
-  flex-shrink: 0;
-  transition: background 0.3s, box-shadow 0.3s;
-}
-.fb-item.pass .fb-dot {
-  background: var(--green);
-  box-shadow: 0 0 6px var(--green);
-}
+.fb-dot { width: 7px; height: 7px; border-radius: 50%; background: rgba(212,232,216,0.15); flex-shrink: 0; transition: background 0.3s, box-shadow 0.3s; }
+.fb-item.pass .fb-dot { background: var(--green); box-shadow: 0 0 6px var(--green); }
 .fb-item.fail .fb-dot { background: rgba(212,232,216,0.1); }
-
-.fb-feedback-text {
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px solid rgba(0,220,130,0.1);
-  font-size: 12px;
-  color: rgba(212,232,216,0.6);
-  line-height: 1.6;
-  font-style: italic;
-}
-
-/* ═══ RESULT OVERLAY ═══ */
-.result-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.75);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 300;
-  transition: opacity 0.4s;
-}
+.fb-feedback-text { margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(0,220,130,0.1); font-size: 12px; color: rgba(212,232,216,0.6); line-height: 1.6; font-style: italic; }
+.result-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.75); display: flex; align-items: center; justify-content: center; z-index: 300; transition: opacity 0.4s; }
 .result-hidden { opacity: 0; pointer-events: none; }
 .result-visible { opacity: 1 !important; pointer-events: all !important; }
-
-.result-box {
-  background: #080f18;
-  border: 1px solid rgba(0,220,130,0.3);
-  border-radius: 24px;
-  padding: 48px 56px;
-  text-align: center;
-  max-width: 400px;
-}
-.result-icon {
-  font-size: 56px;
-  margin-bottom: 12px;
-}
-.result-title {
-  font-family: var(--mono);
-  font-size: 28px;
-  letter-spacing: 0.2em;
-  color: var(--green);
-  margin-bottom: 12px;
-}
+.result-box { background: #080f18; border: 1px solid rgba(0,220,130,0.3); border-radius: 24px; padding: 48px 56px; text-align: center; max-width: 400px; }
+.result-icon { font-size: 56px; margin-bottom: 12px; }
+.result-title { font-family: var(--mono); font-size: 28px; letter-spacing: 0.2em; color: var(--green); margin-bottom: 12px; }
 .result-title.fail { color: var(--red); }
-.result-desc {
-  font-size: 15px;
-  color: var(--text-dim);
-  margin-bottom: 28px;
-  line-height: 1.7;
-}
+.result-desc { font-size: 15px; color: var(--text-dim); margin-bottom: 28px; line-height: 1.7; }
 .result-box button { width: 100%; justify-content: center; }
-
-/* ═══ PATIENT CHART MODAL ═══ */
-
-.chart-modal {
-  width: 540px;
-  max-width: 92vw;
-  max-height: 82vh;
-  display: flex;
-  flex-direction: column;
-  padding: 0;
-  overflow: hidden;
-}
-
-.chart-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  padding: 24px 28px 18px;
-  border-bottom: 1px solid rgba(0,220,130,0.1);
-  flex-shrink: 0;
-}
-.chart-name {
-  font-size: 22px;
-  font-weight: 700;
-  color: var(--text);
-  letter-spacing: 0.01em;
-  margin-bottom: 4px;
-}
-.chart-meta {
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--text-dim);
-  letter-spacing: 0.08em;
-}
-.chart-badge {
-  font-family: var(--mono);
-  font-size: 12px;
-  font-weight: bold;
-  color: var(--green);
-  background: rgba(0,220,130,0.1);
-  border: 1px solid rgba(0,220,130,0.3);
-  border-radius: 8px;
-  padding: 5px 12px;
-  white-space: nowrap;
-}
-
-/* Tabs */
-.chart-tabs {
-  display: flex;
-  gap: 0;
-  border-bottom: 1px solid rgba(0,220,130,0.1);
-  flex-shrink: 0;
-  padding: 0 28px;
-}
-.chart-tab {
-  background: transparent;
-  border: none;
-  border-bottom: 2px solid transparent;
-  border-radius: 0;
-  color: var(--text-dim);
-  font-size: 12px;
-  letter-spacing: 0.06em;
-  padding: 10px 14px 9px;
-  cursor: pointer;
-  margin-bottom: -1px;
-  transition: color 0.15s, border-color 0.15s;
-  box-shadow: none;
-}
+.chart-modal { width: 540px; max-width: 92vw; max-height: 82vh; display: flex; flex-direction: column; padding: 0; overflow: hidden; }
+.chart-header { display: flex; align-items: flex-start; justify-content: space-between; padding: 24px 28px 18px; border-bottom: 1px solid rgba(0,220,130,0.1); flex-shrink: 0; }
+.chart-name { font-size: 22px; font-weight: 700; color: var(--text); letter-spacing: 0.01em; margin-bottom: 4px; }
+.chart-meta { font-family: var(--mono); font-size: 11px; color: var(--text-dim); letter-spacing: 0.08em; }
+.chart-badge { font-family: var(--mono); font-size: 12px; font-weight: bold; color: var(--green); background: rgba(0,220,130,0.1); border: 1px solid rgba(0,220,130,0.3); border-radius: 8px; padding: 5px 12px; white-space: nowrap; }
+.chart-tabs { display: flex; gap: 0; border-bottom: 1px solid rgba(0,220,130,0.1); flex-shrink: 0; padding: 0 28px; }
+.chart-tab { background: transparent; border: none; border-bottom: 2px solid transparent; border-radius: 0; color: var(--text-dim); font-size: 12px; letter-spacing: 0.06em; padding: 10px 14px 9px; cursor: pointer; margin-bottom: -1px; transition: color 0.15s, border-color 0.15s; box-shadow: none; }
 .chart-tab:hover { color: var(--text); background: transparent; box-shadow: none; }
-.chart-tab.active {
-  color: var(--green);
-  border-bottom-color: var(--green);
-  background: transparent;
-  box-shadow: none;
-}
-
-/* Panes */
-.chart-pane {
-  padding: 20px 28px 24px;
-  overflow-y: auto;
-  flex: 1;
-}
+.chart-tab.active { color: var(--green); border-bottom-color: var(--green); background: transparent; box-shadow: none; }
+.chart-pane { padding: 20px 28px 24px; overflow-y: auto; flex: 1; }
 .chart-pane.hidden { display: none; }
-
-.chart-section-title {
-  font-family: var(--mono);
-  font-size: 9px;
-  letter-spacing: 0.22em;
-  color: var(--text-dim);
-  margin-bottom: 10px;
-}
-.chart-text {
-  font-size: 13px;
-  color: var(--text);
-  line-height: 1.7;
-}
-.chart-row-group {
-  display: flex;
-  gap: 20px;
-  margin-top: 10px;
-  flex-wrap: wrap;
-}
-.chart-row-group .cr-item {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.chart-row-group .cr-label {
-  font-family: var(--mono);
-  font-size: 9px;
-  letter-spacing: 0.12em;
-  color: var(--text-dim);
-}
-.chart-row-group .cr-val {
-  font-family: var(--mono);
-  font-size: 13px;
-  color: var(--green);
-}
-
-/* Dx pills */
-.chart-dx-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 7px;
-}
-.dx-pill {
-  font-size: 12px;
-  background: rgba(0,220,130,0.08);
-  border: 1px solid rgba(0,220,130,0.2);
-  border-radius: 20px;
-  padding: 4px 12px;
-  color: var(--text);
-}
-.dx-pill.primary {
-  background: rgba(0,220,130,0.18);
-  border-color: rgba(0,220,130,0.45);
-  color: var(--green);
-  font-weight: 600;
-}
-
-/* Lists */
-.chart-list {
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 0;
-}
-.chart-list li {
-  font-size: 13px;
-  color: var(--text);
-  padding: 8px 12px;
-  background: rgba(255,255,255,0.03);
-  border-left: 2px solid rgba(0,220,130,0.3);
-  border-radius: 0 6px 6px 0;
-  line-height: 1.5;
-}
+.chart-section-title { font-family: var(--mono); font-size: 9px; letter-spacing: 0.22em; color: var(--text-dim); margin-bottom: 10px; }
+.chart-text { font-size: 13px; color: var(--text); line-height: 1.7; }
+.chart-row-group { display: flex; gap: 20px; margin-top: 10px; flex-wrap: wrap; }
+.chart-row-group .cr-item { display: flex; flex-direction: column; gap: 2px; }
+.chart-row-group .cr-label { font-family: var(--mono); font-size: 9px; letter-spacing: 0.12em; color: var(--text-dim); }
+.chart-row-group .cr-val { font-family: var(--mono); font-size: 13px; color: var(--green); }
+.chart-dx-list { display: flex; flex-wrap: wrap; gap: 7px; }
+.dx-pill { font-size: 12px; background: rgba(0,220,130,0.08); border: 1px solid rgba(0,220,130,0.2); border-radius: 20px; padding: 4px 12px; color: var(--text); }
+.dx-pill.primary { background: rgba(0,220,130,0.18); border-color: rgba(0,220,130,0.45); color: var(--green); font-weight: 600; }
+.chart-list { list-style: none; display: flex; flex-direction: column; gap: 8px; padding: 0; }
+.chart-list li { font-size: 13px; color: var(--text); padding: 8px 12px; background: rgba(255,255,255,0.03); border-left: 2px solid rgba(0,220,130,0.3); border-radius: 0 6px 6px 0; line-height: 1.5; }
 .mono-list li { font-family: var(--mono); font-size: 12px; }
-.events-list li {
-  border-left-color: var(--yellow);
-  color: rgba(212,232,216,0.85);
-}
-.events-list li::before {
-  content: "⚠ ";
-  color: var(--yellow);
-  font-size: 11px;
-}
-
+.events-list li { border-left-color: var(--yellow); color: rgba(212,232,216,0.85); }
+.events-list li::before { content: "!"; color: var(--yellow); font-size: 11px; margin-right: 6px; }
 </style>
 
-
-<!-- ═══════════════ SCRIPTS ═══════════════ -->
 <script>
-
-/* ── DOM refs ── */
-const textarea    = document.getElementById("message");
+const textarea = document.getElementById("message");
 const doctorReply = document.getElementById("doctorReply");
-const sendBtn     = document.getElementById("sendBtn");
-
-/* ══════════════════ MONITOR ══════════════════ */
-
-async function loadMonitor() {
-  const res  = await fetch("/get_monitor");
-  const data = await res.json();
-
-  document.getElementById("hr").innerText  = data.hr;
-  document.getElementById("bp").innerText  = data.bp;
-  document.getElementById("rr").innerText  = data.rr;
-
-  const spo2El = document.getElementById("spo2");
-  spo2El.innerText = data.spo2;
-  spo2El.className = "mon-val " + spo2Color(data.spo2);
-
-  document.getElementById("turnCounter").innerText =
-    "TURN " + data.turn + " / 10";
-}
-
-function spo2Color(v) {
-  if (v >= 95)       return "green";
-  if (v >= 90)       return "yellow";
-  return "red";
-}
-
-loadMonitor();
-setInterval(loadMonitor, 2000);
-
-/* ══════════════════ MODAL (vent/labs) ══════════════════ */
-
-function openModal(html) {
-  document.getElementById("modalBody").innerHTML = html;
-  document.getElementById("dataModal").classList.add("open");
-}
-function closeModal() {
-  document.getElementById("dataModal").classList.remove("open");
-}
-
-async function openVent() {
-  const d = await (await fetch("/get_vent")).json();
-  openModal(`
-    <h3>Ventilator</h3>
-    <div class="val-row"><span class="val-label">MODE</span>  <span class="val-num">${d.mode}</span></div>
-    <div class="val-row"><span class="val-label">FiO₂</span>  <span class="val-num">${d.fio2}</span></div>
-    <div class="val-row"><span class="val-label">PEEP</span>  <span class="val-num">${d.peep} cmH₂O</span></div>
-    <div class="val-row"><span class="val-label">RR</span>    <span class="val-num">${d.rr} /min</span></div>
-  `);
-}
-
-async function openLabs() {
-  const d = await (await fetch("/get_labs")).json();
-  const a = d.abga;
-  openModal(`
-    <h3>ABGA</h3>
-    <div class="val-row"><span class="val-label">pH</span>    <span class="val-num">${a.pH}</span></div>
-    <div class="val-row"><span class="val-label">PaCO₂</span> <span class="val-num">${a.PaCO2} mmHg</span></div>
-    <div class="val-row"><span class="val-label">PaO₂</span>  <span class="val-num">${a.PaO2} mmHg</span></div>
-    <div class="val-row"><span class="val-label">HCO₃</span>  <span class="val-num">${a.HCO3} mEq/L</span></div>
-  `);
-}
-
-/* ══════════════════ FEEDBACK PANEL ══════════════════ */
-
-const FIELD_MAP = {
-  identify_self:       "fb_identify_self",
-  patient_name:        "fb_patient_name",
-  patient_identifier:  "fb_patient_identifier",
-  situation:           "fb_situation",
-  context:             "fb_context",
-  recent_findings:     "fb_recent_findings",
-  facts_only:          "fb_facts_only",
-  assessment:          "fb_assessment",
-  recommendation:      "fb_recommendation",
-  contact_information: "fb_contact_information",
-};
-
-function showFeedback(analysis, turnScore, totalScore) {
-  const panel = document.getElementById("feedbackPanel");
-
-  // 각 항목 색상 업데이트
-  for (const [key, elemId] of Object.entries(FIELD_MAP)) {
-    const el = document.getElementById(elemId);
-    if (!el) continue;
-    const passed = analysis[key] === 1;
-    el.classList.toggle("pass", passed);
-    el.classList.toggle("fail", !passed);
-  }
-
-  // 점수 뱃지
-  document.getElementById("fbScore").innerText = `${turnScore} / 10`;
-
-  // 총 점수도 모니터에 반영
-  document.getElementById("totalScore").innerText = `SCORE ${totalScore}`;
-
-  // 피드백 텍스트
-  const fbText = document.getElementById("fbFeedbackText");
-  fbText.innerText = analysis.feedback || "";
-
-  // 패널 표시
-  panel.classList.remove("feedback-hidden");
-  panel.classList.add("feedback-visible");
-}
-
-function closeFeedback() {
-  const panel = document.getElementById("feedbackPanel");
-  panel.classList.remove("feedback-visible");
-  panel.classList.add("feedback-hidden");
-}
-
-/* ══════════════════ RESULT OVERLAY ══════════════════ */
-
-function showResult(result) {
-  const overlay = document.getElementById("resultOverlay");
-  const icon    = document.getElementById("resultIcon");
-  const title   = document.getElementById("resultTitle");
-  const desc    = document.getElementById("resultDesc");
-
-  if (result === "SUCCESS") {
-    icon.innerText  = "✓";
-    title.innerText = "MISSION COMPLETE";
-    title.className = "result-title";
-    desc.innerText  = "SBAR 커뮤니케이션이 충분히 완성되었습니다.\n의사가 즉각 대응합니다.";
-  } else {
-    icon.innerText  = "✕";
-    title.innerText = "TIME OVER";
-    title.className = "result-title fail";
-    desc.innerText  = "제한 시간 내에 완전한 SBAR 보고를 완료하지 못했습니다.\n다시 시도해보세요.";
-  }
-
-  overlay.classList.remove("result-hidden");
-  overlay.classList.add("result-visible");
-}
-
-/* ══════════════════ SEND MESSAGE ══════════════════ */
-
-async function sendMessage() {
-  const message = textarea.value.trim();
-  if (!message) return;
-
-  textarea.value  = "";
-  sendBtn.disabled = true;
-  doctorReply.innerText = "응답을 생성 중입니다...";
-  closeFeedback();
-
-  try {
-    const res  = await fetch("/interact", {
-      method:  "POST",
-      headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({ message }),
-    });
-    const data = await res.json();
-
-    if (data.error) {
-      doctorReply.innerText = `오류: ${data.error}`;
-      return;
-    }
-
-    typeText(doctorReply, data.physician_response);
-    showFeedback(data.analysis, data.score, data.total_score);
-
-    if (data.result) {
-      setTimeout(() => showResult(data.result), 1200);
-    }
-
-  } catch (e) {
-    doctorReply.innerText = "네트워크 오류가 발생했습니다.";
-  } finally {
-    sendBtn.disabled = false;
-  }
-}
-
-/* ── Typewriter ── */
-function typeText(el, text, speed = 22) {
-  let i = 0;
-  const timer = setInterval(() => {
-    el.innerText = text.substring(0, i);
-    i++;
-    if (i > text.length) clearInterval(timer);
-  }, speed);
-}
-
-/* ── Enter to send ── */
-textarea.addEventListener("keydown", e => {
-  if (e.key === "Enter" && !e.shiftKey) {
-    e.preventDefault();
-    sendMessage();
-  }
-});
-
-/* ── Modal close on backdrop click ── */
-document.getElementById("dataModal").addEventListener("click", function(e) {
-  if (e.target === this) closeModal();
-});
-document.getElementById("patientModal").addEventListener("click", function(e) {
-  if (e.target === this) closePatientModal();
-});
-
-/* ══════════════════ PATIENT CHART MODAL ══════════════════ */
-
-async function openPatient() {
-  const p = await (await fetch("/get_patient")).json();
-
-  // 헤더
-  document.getElementById("chartName").innerText = p.name || "Unknown Patient";
-  document.getElementById("chartMeta").innerText =
-    [p.age ? p.age + "세" : null, p.gender, p.dob, p.mrn ? "MRN " + p.mrn : null]
-      .filter(Boolean).join("  ·  ");
-  document.getElementById("chartRoom").innerText = p.room || "";
-
-  // Diagnosis pills
-  const dxEl = document.getElementById("chartDx");
-  dxEl.innerHTML = "";
-  const dxList = Array.isArray(p.diagnosis)
-    ? p.diagnosis : (p.diagnosis ? [p.diagnosis] : []);
-  dxList.forEach((dx, i) => {
-    const pill = document.createElement("span");
-    pill.className = "dx-pill" + (i === 0 ? " primary" : "");
-    pill.innerText = dx;
-    dxEl.appendChild(pill);
-  });
-
-  // Admission info
-  document.getElementById("chartAdmission").innerText = p.admission_reason || "—";
-  const metaEl = document.getElementById("chartAdmMeta");
-  metaEl.innerHTML = [
-    { label: "ADMISSION DATE", val: p.admission_date || "—" },
-    { label: "ICU DAY",        val: p.icu_day != null ? "Day " + p.icu_day : "—" },
-    { label: "WEIGHT",         val: p.weight ? p.weight + " kg" : "—" },
-    { label: "HEIGHT",         val: p.height ? p.height + " cm" : "—" },
-  ].map(({ label, val }) =>
-    `<div class="cr-item"><span class="cr-label">${label}</span><span class="cr-val">${val}</span></div>`
-  ).join("");
-
-  document.getElementById("chartNote").innerText = p.note || "—";
-
-  // History tab
-  const histEl = document.getElementById("chartHistory");
-  histEl.innerHTML = (p.history?.length)
-    ? p.history.map(h => `<li>${h}</li>`).join("")
-    : "<li>기록 없음</li>";
-
-  // Medications tab
-  const medsEl = document.getElementById("chartMeds");
-  medsEl.innerHTML = (p.medications?.length)
-    ? p.medications.map(m => `<li>${m}</li>`).join("")
-    : "<li>처방 없음</li>";
-
-  // Recent Events tab
-  const evEl = document.getElementById("chartEvents");
-  evEl.innerHTML = (p.recent_events?.length)
-    ? p.recent_events.map(e => `<li>${e}</li>`).join("")
-    : "<li>특이 사항 없음</li>";
-
-  // Open on overview tab
-  document.querySelectorAll(".chart-pane").forEach(el => el.classList.add("hidden"));
-  document.querySelectorAll(".chart-tab").forEach(el => el.classList.remove("active"));
-  document.getElementById("tab-overview").classList.remove("hidden");
-  document.querySelector(".chart-tab").classList.add("active");
-
-  document.getElementById("patientModal").classList.add("open");
-}
-
-function closePatientModal() {
-  document.getElementById("patientModal").classList.remove("open");
-}
-
-function switchTab(name) {
-  document.querySelectorAll(".chart-pane").forEach(el => el.classList.add("hidden"));
-  document.querySelectorAll(".chart-tab").forEach(el => el.classList.remove("active"));
-  document.getElementById("tab-" + name).classList.remove("hidden");
-  event.currentTarget.classList.add("active");
-}
-
+const sendBtn = document.getElementById("sendBtn");
+const FIELD_MAP = { identify_self: "fb_identify_self", patient_name: "fb_patient_name", situation: "fb_situation", context: "fb_context", recent_findings: "fb_recent_findings", facts_only: "fb_facts_only", assessment: "fb_assessment", recommendation: "fb_recommendation", contact_information: "fb_contact_information" };
+async function loadMonitor() { const res = await fetch("/get_monitor"); if (!res.ok) { if (res.status === 401) window.location.href = "/login"; return; } const data = await res.json(); document.getElementById("hr").innerText = data.hr; document.getElementById("bp").innerText = data.bp; document.getElementById("rr").innerText = data.rr; const spo2El = document.getElementById("spo2"); spo2El.innerText = data.spo2; spo2El.className = "mon-val " + spo2Color(data.spo2); document.getElementById("turnCounter").innerText = `TURN ${data.turn} / 10`; }
+function spo2Color(v) { if (v >= 95) return "green"; if (v >= 90) return "yellow"; return "red"; }
+function openModal(html) { document.getElementById("modalBody").innerHTML = html; document.getElementById("dataModal").classList.add("open"); }
+function closeModal() { document.getElementById("dataModal").classList.remove("open"); }
+async function openVent() { const d = await (await fetch("/get_vent")).json(); openModal(`<h3>Ventilator</h3><div class="val-row"><span class="val-label">MODE</span><span class="val-num">${d.mode ?? "-"}</span></div><div class="val-row"><span class="val-label">FiO2</span><span class="val-num">${d.fio2 ?? "-"}</span></div><div class="val-row"><span class="val-label">PEEP</span><span class="val-num">${d.peep ?? "-"} cmH2O</span></div><div class="val-row"><span class="val-label">RR</span><span class="val-num">${d.rr ?? "-"} /min</span></div>`); }
+async function openLabs() { const d = await (await fetch("/get_labs")).json(); const a = d.abga || {}; openModal(`<h3>ABGA</h3><div class="val-row"><span class="val-label">pH</span><span class="val-num">${a.pH ?? "-"}</span></div><div class="val-row"><span class="val-label">PaCO2</span><span class="val-num">${a.PaCO2 ?? "-"} mmHg</span></div><div class="val-row"><span class="val-label">PaO2</span><span class="val-num">${a.PaO2 ?? "-"} mmHg</span></div><div class="val-row"><span class="val-label">HCO3</span><span class="val-num">${a.HCO3 ?? "-"} mEq/L</span></div>`); }
+function showFeedback(analysis, turnScore, totalScore) { const panel = document.getElementById("feedbackPanel"); for (const [key, elemId] of Object.entries(FIELD_MAP)) { const el = document.getElementById(elemId); if (!el) continue; const passed = analysis[key] === 1; el.classList.toggle("pass", passed); el.classList.toggle("fail", !passed); } document.getElementById("fbScore").innerText = `${turnScore} / 10`; document.getElementById("totalScore").innerText = `SCORE ${totalScore}`; document.getElementById("fbFeedbackText").innerText = analysis.feedback || ""; panel.classList.remove("feedback-hidden"); panel.classList.add("feedback-visible"); }
+function closeFeedback() { const panel = document.getElementById("feedbackPanel"); panel.classList.remove("feedback-visible"); panel.classList.add("feedback-hidden"); }
+function showResult(result) { const overlay = document.getElementById("resultOverlay"); const icon = document.getElementById("resultIcon"); const title = document.getElementById("resultTitle"); const desc = document.getElementById("resultDesc"); if (result === "SUCCESS") { icon.innerText = "OK"; title.innerText = "MISSION COMPLETE"; title.className = "result-title"; desc.innerText = "SBAR &#xBCF4;&#xACE0;&#xAC00; &#xAE30;&#xC900;&#xC744; &#xCDA9;&#xC871;&#xD588;&#xC2B5;&#xB2C8;&#xB2E4;."; } else { icon.innerText = "!"; title.innerText = "TIME OVER"; title.className = "result-title fail"; desc.innerText = "&#xC81C;&#xD55C;&#xB41C; &#xD134; &#xC548;&#xC5D0; &#xBCF4;&#xACE0;&#xB97C; &#xC644;&#xB8CC;&#xD558;&#xC9C0; &#xBABB;&#xD588;&#xC2B5;&#xB2C8;&#xB2E4;."; } overlay.classList.remove("result-hidden"); overlay.classList.add("result-visible"); }
+async function sendMessage() { const message = textarea.value.trim(); if (!message) return; textarea.value = ""; sendBtn.disabled = true; doctorReply.innerText = "의사 응답을 생성하는 중입니다..."; closeFeedback(); try { const res = await fetch("/interact", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message }) }); const data = await res.json(); if (!res.ok || data.error) { doctorReply.innerText = `오류: ${data.error || "요청 처리에 실패했습니다."}`; return; } typeText(doctorReply, data.physician_response); showFeedback(data.analysis, data.score, data.total_score); if (data.result) setTimeout(() => showResult(data.result), 1200); } catch (error) { doctorReply.innerText = "네트워크 오류가 발생했습니다."; } finally { sendBtn.disabled = false; } }
+function typeText(el, text, speed = 22) { let i = 0; const timer = setInterval(() => { el.innerText = text.substring(0, i); i += 1; if (i > text.length) clearInterval(timer); }, speed); }
+textarea.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } });
+document.getElementById("dataModal").addEventListener("click", function (e) { if (e.target === this) closeModal(); });
+document.getElementById("patientModal").addEventListener("click", function (e) { if (e.target === this) closePatientModal(); });
+async function openPatient() { const p = await (await fetch("/get_patient")).json(); document.getElementById("chartName").innerText = p.name || "Unknown Patient"; document.getElementById("chartMeta").innerText = [p.age ? `${p.age} y` : null, p.gender || null, p.dob || null, p.mrn ? `MRN ${p.mrn}` : null].filter(Boolean).join(" | "); document.getElementById("chartRoom").innerText = p.room || ""; const dxEl = document.getElementById("chartDx"); dxEl.innerHTML = ""; const dxList = Array.isArray(p.diagnosis) ? p.diagnosis : (p.diagnosis ? [p.diagnosis] : []); dxList.forEach((dx, i) => { const pill = document.createElement("span"); pill.className = "dx-pill" + (i === 0 ? " primary" : ""); pill.innerText = dx; dxEl.appendChild(pill); }); document.getElementById("chartAdmission").innerText = p.admission_reason || "No admission note."; document.getElementById("chartAdmMeta").innerHTML = [{ label: "ADMISSION DATE", val: p.admission_date || "-" }, { label: "ICU DAY", val: p.icu_day != null ? `Day ${p.icu_day}` : "-" }, { label: "WEIGHT", val: p.weight ? `${p.weight} kg` : "-" }, { label: "HEIGHT", val: p.height ? `${p.height} cm` : "-" }].map(({ label, val }) => `<div class="cr-item"><span class="cr-label">${label}</span><span class="cr-val">${val}</span></div>`).join(""); document.getElementById("chartNote").innerText = p.note || "No note."; document.getElementById("chartHistory").innerHTML = (p.history?.length ? p.history.map(item => `<li>${item}</li>`).join("") : "<li>No history available.</li>"); document.getElementById("chartMeds").innerHTML = (p.medications?.length ? p.medications.map(item => `<li>${item}</li>`).join("") : "<li>No medications listed.</li>"); document.getElementById("chartEvents").innerHTML = (p.recent_events?.length ? p.recent_events.map(item => `<li>${item}</li>`).join("") : "<li>No recent events.</li>"); document.querySelectorAll(".chart-pane").forEach((el) => el.classList.add("hidden")); document.querySelectorAll(".chart-tab").forEach((el) => el.classList.remove("active")); document.getElementById("tab-overview").classList.remove("hidden"); document.querySelector('.chart-tab[data-tab="overview"]').classList.add("active"); document.getElementById("patientModal").classList.add("open"); }
+function closePatientModal() { document.getElementById("patientModal").classList.remove("open"); }
+function switchTab(name, event) { document.querySelectorAll(".chart-pane").forEach((el) => el.classList.add("hidden")); document.querySelectorAll(".chart-tab").forEach((el) => el.classList.remove("active")); document.getElementById(`tab-${name}`).classList.remove("hidden"); event.currentTarget.classList.add("active"); }
+async function logoutUser() { await fetch("/logout", { method: "POST" }); window.location.href = "/login"; }
+loadMonitor(); setInterval(loadMonitor, 2000);
 </script>
-
 {% endblock %}
