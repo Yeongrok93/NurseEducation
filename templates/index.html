@@ -254,7 +254,28 @@ function showFeedback(analysis, turnScore, totalScore) { const panel = document.
 function closeFeedback() { const panel = document.getElementById("feedbackPanel"); panel.classList.remove("feedback-visible"); panel.classList.add("feedback-hidden"); }
 function showResult(result) { const overlay = document.getElementById("resultOverlay"); const icon = document.getElementById("resultIcon"); const title = document.getElementById("resultTitle"); const desc = document.getElementById("resultDesc"); if (result === "SUCCESS") { icon.innerText = "OK"; title.innerText = "MISSION COMPLETE"; title.className = "result-title"; desc.innerText = "SBAR &#xBCF4;&#xACE0;&#xAC00; &#xAE30;&#xC900;&#xC744; &#xCDA9;&#xC871;&#xD588;&#xC2B5;&#xB2C8;&#xB2E4;."; } else { icon.innerText = "!"; title.innerText = "TIME OVER"; title.className = "result-title fail"; desc.innerText = "&#xC81C;&#xD55C;&#xB41C; &#xD134; &#xC548;&#xC5D0; &#xBCF4;&#xACE0;&#xB97C; &#xC644;&#xB8CC;&#xD558;&#xC9C0; &#xBABB;&#xD588;&#xC2B5;&#xB2C8;&#xB2E4;."; } overlay.classList.remove("result-hidden"); overlay.classList.add("result-visible"); }
 async function sendMessage() { const message = textarea.value.trim(); if (!message) return; textarea.value = ""; sendBtn.disabled = true; doctorReply.innerText = "의사 응답을 생성하는 중입니다..."; closeFeedback(); try { const res = await fetch("/interact", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message }) }); const data = await res.json(); if (!res.ok || data.error) { doctorReply.innerText = `오류: ${data.error || "요청 처리에 실패했습니다."}`; return; } typeText(doctorReply, data.physician_response); showFeedback(data.analysis, data.score, data.total_score); if (data.result) setTimeout(() => showResult(data.result), 1200); } catch (error) { doctorReply.innerText = "네트워크 오류가 발생했습니다."; } finally { sendBtn.disabled = false; } }
-function typeText(el, text, speed = 22) { let i = 0; const timer = setInterval(() => { el.innerText = text.substring(0, i); i += 1; if (i > text.length) clearInterval(timer); }, speed); }
+const typingSfx = new Audio("/static/audio/typing.mp3");
+typingSfx.loop = true;
+typingSfx.volume = 0.45;
+function typeText(el, text, speed = 22) {
+  let i = 0;
+  typingSfx.currentTime = 0;
+  typingSfx.volume = 0.45;
+  typingSfx.play().catch(() => {});
+  const timer = setInterval(() => {
+    el.innerText = text.substring(0, i);
+    i += 1;
+    if (i > text.length) {
+      clearInterval(timer);
+      let fadeVol = typingSfx.volume;
+      const fade = setInterval(() => {
+        fadeVol -= 0.05;
+        if (fadeVol <= 0) { typingSfx.pause(); clearInterval(fade); }
+        else { typingSfx.volume = fadeVol; }
+      }, 40);
+    }
+  }, speed);
+}
 textarea.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } });
 document.getElementById("dataModal").addEventListener("click", function (e) { if (e.target === this) closeModal(); });
 document.getElementById("patientModal").addEventListener("click", function (e) { if (e.target === this) closePatientModal(); });
