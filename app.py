@@ -208,14 +208,14 @@ def auth_register():
     if len(password) < 4:
         return jsonify({"error": "비밀번호는 4자 이상이어야 합니다."}), 400
 
-    user = log_repo.register_user(username, password)
+    result = log_repo.register_user(username, password)
 
-    if not user:
-        import uuid
-        uid = str(uuid.uuid4())
-        user = {"id": uid, "username": username, "password": password}
-        LOCAL_USERS[username] = user
+    if not result["ok"]:
+        if result["reason"] == "duplicate":
+            return jsonify({"error": "이미 사용 중인 아이디입니다."}), 409
+        return jsonify({"error": "회원가입에 실패했습니다. 다시 시도해 주세요."}), 500
 
+    user = result["user"]
     session.clear()
     session["user_id"] = str(user["id"])
     session["user_email"] = username

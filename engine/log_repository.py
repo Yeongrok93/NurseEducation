@@ -129,6 +129,22 @@ class SupabaseLogRepository:
 
     # ── Research user helpers ──
 
+    def find_user(self, username: str) -> Optional[dict]:
+        if not self.client:
+            return None
+        try:
+            response = (
+                self.client.table("research_users")
+                .select("id, username")
+                .eq("username", username)
+                .execute()
+            )
+            if response.data:
+                return response.data[0]
+        except Exception:
+            logger.exception("Failed to find user.")
+        return None
+
     def authenticate_user(self, username: str, password: str) -> Optional[dict]:
         if not self.client:
             return None
@@ -146,9 +162,10 @@ class SupabaseLogRepository:
             logger.exception("Failed to authenticate user.")
         return None
 
-    def register_user(self, username: str, password: str) -> Optional[dict]:
+    def register_user(self, username: str, password: str) -> dict:
+        """Returns {"ok": True, "user": dict} or {"ok": False, "reason": str}."""
         if not self.client:
-            return None
+            return {"ok": False, "reason": "db_unavailable"}
         try:
             response = (
                 self.client.table("research_users")
@@ -156,10 +173,12 @@ class SupabaseLogRepository:
                 .execute()
             )
             if response.data:
-                return response.data[0]
-        except Exception:
+                return {"ok": True, "user": response.data[0]}
+        except Exception as exc:
+            if "23505" in str(exc):
+                return {"ok": False, "reason": "duplicate"}
             logger.exception("Failed to register user.")
-        return None
+        return {"ok": False, "reason": "unknown"}
 
     def _now_iso(self) -> str:
         return datetime.now(timezone.utc).isoformat()

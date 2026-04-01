@@ -2,7 +2,7 @@ create extension if not exists pgcrypto;
 
 create table if not exists public.sessions (
     id uuid primary key default gen_random_uuid(),
-    user_id text,
+    user_id uuid references public.research_users(id) on delete set null,
     scenario text,
     start_time timestamptz,
     end_time timestamptz,
