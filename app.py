@@ -324,7 +324,7 @@ def interact():
             physician_response = "죄송합니다. 잠시 후 다시 시도해 주세요."
 
     game.history.append({"role": "assistant", "content": physician_response})
-    log_repo.log_turn(game, message, physician_response, analysis, result)
+    log_repo.log_turn(game, message, physician_response, analysis, result, current_user_email())
     if result:
         log_repo.finalize_game_session(game, result)
 

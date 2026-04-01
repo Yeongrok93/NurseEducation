@@ -57,6 +57,7 @@ class SupabaseLogRepository:
         physician_response: str,
         analysis: dict,
         result: Optional[str],
+        username: Optional[str] = None,
     ) -> None:
         if not self.client or not game.db_session_id:
             return
@@ -71,6 +72,7 @@ class SupabaseLogRepository:
             "patient_state": self._build_patient_state(game),
             "nurse_state": self._build_nurse_state(game, analysis, result),
             "phase": game.turn,
+            "username": username,
             "created_at": self._now_iso(),
         }
 

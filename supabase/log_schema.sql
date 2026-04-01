@@ -23,6 +23,7 @@ create table if not exists public.interactions (
     patient_state jsonb,
     nurse_state jsonb,
     phase int4,
+    username text,
     created_at timestamptz
 );
 
