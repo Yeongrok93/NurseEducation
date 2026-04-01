@@ -32,8 +32,7 @@ CORS(app)
 SCENARIO_NAME = "spo2_drop"
 _scenario_template = load_scenario(SCENARIO_NAME)
 
-SUPABASE_URL = os.getenv("SUPABASE_URL", "")
-SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY", "")
+LOCAL_USERS: dict[str, dict] = {}
 
 SBAR_SCORE_KEYS = [
     "identify_self",
@@ -165,39 +164,63 @@ def _new_game() -> GameState:
 def login():
     if current_user_id():
         return redirect(url_for("home"))
-    return render_template(
-        "login.html",
-        supabase_url=SUPABASE_URL,
-        supabase_anon_key=SUPABASE_ANON_KEY,
-    )
+    return render_template("login.html")
 
 
-@app.route("/auth/session", methods=["POST"])
-def auth_session():
-    if not log_repo.client:
-        return jsonify({"error": "Supabase is not configured"}), 500
-
+@app.route("/auth/login", methods=["POST"])
+def auth_login():
     data = request.get_json(silent=True) or {}
-    access_token = data.get("access_token")
-    if not access_token:
-        return jsonify({"error": "Missing access token"}), 400
+    username = data.get("username", "").strip()
+    password = data.get("password", "").strip()
 
-    try:
-        response = log_repo.client.auth.get_user(access_token)
-        user = response.user
-    except Exception as exc:
-        logger.exception("Failed to verify Supabase token.")
-        return jsonify({"error": f"Token verification failed: {str(exc)}"}), 401
+    if not username or not password:
+        return jsonify({"error": "아이디와 비밀번호를 입력해 주세요."}), 400
+
+    user = log_repo.authenticate_user(username, password)
+
+    if not user and username in LOCAL_USERS:
+        local = LOCAL_USERS[username]
+        if local["password"] == password:
+            user = local
 
     if not user:
-        return jsonify({"error": "Invalid user"}), 401
+        return jsonify({"error": "아이디 또는 비밀번호가 올바르지 않습니다."}), 401
 
     session.clear()
-    session["user_id"] = user.id
-    session["user_email"] = user.email
-    session["auth_access_token"] = access_token
+    session["user_id"] = str(user["id"])
+    session["user_email"] = user.get("display_name") or username
 
-    return jsonify({"user_id": user.id, "email": user.email})
+    return jsonify({"user_id": str(user["id"]), "username": username})
+
+
+@app.route("/auth/register", methods=["POST"])
+def auth_register():
+    data = request.get_json(silent=True) or {}
+    username = data.get("username", "").strip()
+    password = data.get("password", "").strip()
+
+    if not username or not password:
+        return jsonify({"error": "아이디와 비밀번호를 입력해 주세요."}), 400
+
+    if len(username) < 2:
+        return jsonify({"error": "아이디는 2자 이상이어야 합니다."}), 400
+
+    if len(password) < 4:
+        return jsonify({"error": "비밀번호는 4자 이상이어야 합니다."}), 400
+
+    user = log_repo.register_user(username, password)
+
+    if not user:
+        import uuid
+        uid = str(uuid.uuid4())
+        user = {"id": uid, "username": username, "password": password}
+        LOCAL_USERS[username] = user
+
+    session.clear()
+    session["user_id"] = str(user["id"])
+    session["user_email"] = username
+
+    return jsonify({"user_id": str(user["id"]), "username": username})
 
 
 @app.route("/auth/me")

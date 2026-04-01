@@ -21,6 +21,7 @@ class SupabaseLogRepository:
 
         try:
             self.client = create_client(url, key)
+            self._ensure_research_users_table()
         except Exception:
             logger.exception("Failed to initialize Supabase client.")
             self.enabled = False
@@ -112,6 +113,53 @@ class SupabaseLogRepository:
             "result": result,
             "history_length": len(game.history),
         }
+
+    def _ensure_research_users_table(self) -> None:
+        if not self.client:
+            return
+        try:
+            self.client.table("research_users").select("id").limit(1).execute()
+            logger.info("research_users table is available.")
+        except Exception:
+            logger.warning(
+                "research_users table not found. "
+                "Run supabase/research_users.sql in the Supabase SQL Editor to create it. "
+                "Local fallback auth will be used until then."
+            )
+
+    # ── Research user helpers ──
+
+    def authenticate_user(self, username: str, password: str) -> Optional[dict]:
+        if not self.client:
+            return None
+        try:
+            response = (
+                self.client.table("research_users")
+                .select("*")
+                .eq("username", username)
+                .eq("password", password)
+                .execute()
+            )
+            if response.data:
+                return response.data[0]
+        except Exception:
+            logger.exception("Failed to authenticate user.")
+        return None
+
+    def register_user(self, username: str, password: str) -> Optional[dict]:
+        if not self.client:
+            return None
+        try:
+            response = (
+                self.client.table("research_users")
+                .insert({"username": username, "password": password})
+                .execute()
+            )
+            if response.data:
+                return response.data[0]
+        except Exception:
+            logger.exception("Failed to register user.")
+        return None
 
     def _now_iso(self) -> str:
         return datetime.now(timezone.utc).isoformat()
