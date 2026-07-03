@@ -6,6 +6,8 @@ import copy
 import logging
 import os
 import re
+import uuid
+from datetime import datetime, timezone
 
 from engine.evaluator import SBAREvaluator
 from engine.game_state import GameState
@@ -131,14 +133,13 @@ def save_game(game: GameState) -> None:
 
 
 def _new_game() -> GameState:
-    import uuid
-
     previous_sid = session.get("sid")
     if previous_sid:
         games.pop(previous_sid, None)
 
     sid = str(uuid.uuid4())
     session["sid"] = sid
+    session["visitor_id"] = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
 
     game = GameState(copy.deepcopy(_scenario_template))
     game.db_session_id = log_repo.create_game_session(sid, game)
@@ -230,7 +231,7 @@ def interact():
 
     game.history.append({"role": "assistant", "content": physician_response})
     save_game(game)
-    log_repo.log_turn(game, message, physician_response, analysis, result)
+    log_repo.log_turn(game, message, physician_response, analysis, result, session.get("visitor_id"))
     if result:
         log_repo.finalize_game_session(game, result)
 
