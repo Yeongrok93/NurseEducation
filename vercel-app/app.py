@@ -184,6 +184,15 @@ def get_patient():
     return jsonify(get_game().scenario.patient)
 
 
+@app.route("/keepalive")
+def keepalive():
+    """Called daily by Vercel Cron so the Supabase project doesn't pause from inactivity."""
+    cron_secret = os.getenv("CRON_SECRET")
+    if cron_secret and request.headers.get("Authorization") != f"Bearer {cron_secret}":
+        return jsonify({"error": "Unauthorized"}), 401
+    return jsonify({"ok": log_repo.ping()})
+
+
 @app.route("/interact", methods=["POST"])
 def interact():
     game = get_game()

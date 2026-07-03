@@ -6,5 +6,8 @@
   },
   "rewrites": [
     { "source": "/((?!static/).*)", "destination": "/api/index" }
+  ],
+  "crons": [
+    { "path": "/keepalive", "schedule": "0 0 * * *" }
   ]
 }

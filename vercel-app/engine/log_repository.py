@@ -138,5 +138,16 @@ class SupabaseLogRepository:
             "history_length": len(game.history),
         }
 
+    def ping(self) -> bool:
+        if not self.client:
+            return False
+
+        try:
+            self.client.table("sessions").select("id").limit(1).execute()
+            return True
+        except Exception:
+            logger.exception("Supabase keepalive ping failed.")
+            return False
+
     def _now_iso(self) -> str:
         return datetime.now(timezone.utc).isoformat()
