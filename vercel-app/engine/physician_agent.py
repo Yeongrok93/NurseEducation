@@ -31,6 +31,7 @@ class PhysicianAgent:
         response = self.client.messages.create(
             model="claude-sonnet-5",
             max_tokens=1024,
+            thinking={"type": "disabled"},
             system=system_prompt,
             messages=history,
         )
